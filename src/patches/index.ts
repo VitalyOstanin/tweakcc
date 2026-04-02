@@ -73,6 +73,7 @@ import { writeWorktreeMode } from './worktreeMode';
 import { writeAllowCustomAgentModels } from './allowCustomAgentModels';
 import { writeVoiceMode } from './voiceMode';
 import { writeChannelsMode } from './channelsMode';
+import { writeKeybindingCustomization } from './keybindingCustomization';
 import {
   restoreNativeBinaryFromBackup,
   restoreClijsFromBackup,
@@ -429,6 +430,13 @@ const PATCH_DEFINITIONS = [
     group: PatchGroup.FEATURES,
     description:
       'Enable MCP channel notifications (--channels without allowlist or dev flag)',
+  },
+  {
+    id: 'keybinding-customization',
+    name: 'Keybinding customization',
+    group: PatchGroup.ALWAYS_APPLIED,
+    description:
+      'Force-enable custom keybindings when CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1',
   },
 ] as const;
 
@@ -887,6 +895,9 @@ export const applyCustomization = async (
     'channels-mode': {
       fn: c => writeChannelsMode(c),
       condition: !!config.settings.misc?.enableChannelsMode,
+    },
+    'keybinding-customization': {
+      fn: c => writeKeybindingCustomization(c),
     },
   };
 
