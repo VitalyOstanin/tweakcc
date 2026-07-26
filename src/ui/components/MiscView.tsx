@@ -87,6 +87,8 @@ export function MiscView({ onSubmit }: MiscViewProps) {
     enableVoiceMode: false,
     enableVoiceConciseOutput: true,
     enableChannelsMode: false,
+    compactAndContinueCommandName: 'cc' as string | null,
+    compactAndContinuePrepareCommand: null as string | null,
   };
 
   const ensureMisc = () => {

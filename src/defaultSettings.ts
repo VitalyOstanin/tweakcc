@@ -721,6 +721,8 @@ export const DEFAULT_SETTINGS: Settings = {
     enableVoiceMode: false,
     enableVoiceConciseOutput: true,
     enableChannelsMode: false,
+    compactAndContinueCommandName: 'cc',
+    compactAndContinuePrepareCommand: null,
   },
   toolsets: [],
   defaultToolset: null,

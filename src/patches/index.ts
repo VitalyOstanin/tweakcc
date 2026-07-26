@@ -80,6 +80,7 @@ import { writeAllowCustomAgentModels } from './allowCustomAgentModels';
 import { writeVoiceMode } from './voiceMode';
 import { writeChannelsMode } from './channelsMode';
 import { writeClearScreen } from './clearScreen';
+import { writeCompactAndContinue } from './compactAndContinue';
 import { writeSessionColor } from './sessionColor';
 import { writeKeybindingCustomization } from './keybindingCustomization';
 import {
@@ -189,6 +190,13 @@ const PATCH_DEFINITIONS = [
     name: 'Clear screen command',
     group: PatchGroup.ALWAYS_APPLIED,
     description: 'Register /clear-screen command (clear scrollback + redraw)',
+  },
+  {
+    id: 'compact-and-continue',
+    name: 'Compact and continue',
+    group: PatchGroup.ALWAYS_APPLIED,
+    description:
+      'Resume working right after a manual /compact, and register a macro command for it',
   },
   {
     id: 'session-color',
@@ -709,6 +717,14 @@ export const applyCustomization = async (
     },
     'clear-screen': {
       fn: c => writeClearScreen(c),
+    },
+    'compact-and-continue': {
+      fn: c =>
+        writeCompactAndContinue(
+          c,
+          config.settings.misc?.compactAndContinueCommandName ?? 'cc',
+          config.settings.misc?.compactAndContinuePrepareCommand ?? null
+        ),
     },
     'session-color': {
       fn: c => writeSessionColor(c),

@@ -139,6 +139,10 @@ export interface MiscConfig {
   enableVoiceMode: boolean;
   enableVoiceConciseOutput: boolean;
   enableChannelsMode: boolean;
+  /** Name (without the leading slash) of the compact-and-continue macro command; null disables it. */
+  compactAndContinueCommandName: string | null;
+  /** Name (without the leading slash) of the command queued before /compact; null skips that step. */
+  compactAndContinuePrepareCommand: string | null;
 }
 
 export interface InputPatternHighlighter {

@@ -32,6 +32,7 @@ const DEFAULT_ON_WITHOUT_VERSION_GATE = new Set<PatchId>([
   'opusplan1m',
   'fix-lsp-support',
   'clear-screen',
+  'compact-and-continue',
   'session-color',
   'keybinding-customization',
   'patches-applied-indication',
@@ -64,6 +65,7 @@ export function isPatchEnabledByConfig(
     case 'opusplan1m':
     case 'fix-lsp-support':
     case 'clear-screen':
+    case 'compact-and-continue':
     case 'session-color':
     case 'keybinding-customization':
     case 'patches-applied-indication':
