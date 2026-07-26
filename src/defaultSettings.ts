@@ -723,6 +723,7 @@ export const DEFAULT_SETTINGS: Settings = {
     enableChannelsMode: false,
     compactAndContinueCommandName: 'cc',
     compactAndContinuePrepareCommand: null,
+    compactAndContinueResumePrompt: null,
   },
   toolsets: [],
   defaultToolset: null,

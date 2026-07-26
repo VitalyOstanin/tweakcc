@@ -80,7 +80,10 @@ import { writeAllowCustomAgentModels } from './allowCustomAgentModels';
 import { writeVoiceMode } from './voiceMode';
 import { writeChannelsMode } from './channelsMode';
 import { writeClearScreen } from './clearScreen';
-import { writeCompactAndContinue } from './compactAndContinue';
+import {
+  DEFAULT_RESUME_PROMPT,
+  writeCompactAndContinue,
+} from './compactAndContinue';
 import { writeSessionColor } from './sessionColor';
 import { writeKeybindingCustomization } from './keybindingCustomization';
 import {
@@ -196,7 +199,7 @@ const PATCH_DEFINITIONS = [
     name: 'Compact and continue',
     group: PatchGroup.ALWAYS_APPLIED,
     description:
-      'Resume working right after a manual /compact, and register a macro command for it',
+      'Register a macro command that runs /compact and then resumes work automatically',
   },
   {
     id: 'session-color',
@@ -723,7 +726,9 @@ export const applyCustomization = async (
         writeCompactAndContinue(
           c,
           config.settings.misc?.compactAndContinueCommandName ?? 'cc',
-          config.settings.misc?.compactAndContinuePrepareCommand ?? null
+          config.settings.misc?.compactAndContinuePrepareCommand ?? null,
+          config.settings.misc?.compactAndContinueResumePrompt ??
+            DEFAULT_RESUME_PROMPT
         ),
     },
     'session-color': {

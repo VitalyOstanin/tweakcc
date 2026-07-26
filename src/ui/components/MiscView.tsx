@@ -89,6 +89,7 @@ export function MiscView({ onSubmit }: MiscViewProps) {
     enableChannelsMode: false,
     compactAndContinueCommandName: 'cc' as string | null,
     compactAndContinuePrepareCommand: null as string | null,
+    compactAndContinueResumePrompt: null as string | null,
   };
 
   const ensureMisc = () => {

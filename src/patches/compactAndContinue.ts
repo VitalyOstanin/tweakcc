@@ -1,5 +1,4 @@
 import { debug } from '../utils';
-import { showDiff } from './index';
 import { writeSlashCommandDefinition } from './slashCommands';
 
 /**
@@ -10,56 +9,20 @@ import { writeSlashCommandDefinition } from './slashCommands';
 export const isValidSlashCommandName = (name: string): boolean =>
   /^[a-zA-Z0-9][a-zA-Z0-9:_-]*$/.test(name);
 
+/** Quote a config-provided string for injection into the minified bundle. */
+const toJsStringLiteral = (value: string): string =>
+  JSON.stringify(value).replace(/[\u2028\u2029]/g, ch =>
+    ch === '\u2028' ? '\\u2028' : '\\u2029'
+  );
+
 const MARKER = 'tweakccCompactAndContinue';
 
 /**
- * Sub-patch 1: run a query after a manual /compact.
- *
- * The REPL branch handling a `compact` command result returns
- * `shouldQuery:!1`, so CC waits for input after compacting even though the
- * summary already carries the "continue without asking further questions"
- * instruction. Flipping it to `!0` makes CC resume on its own.
+ * Default follow-up prompt, matching the wording CC itself appends to an
+ * auto-compact summary.
  */
-export const writeCompactAndContinueShouldQuery = (
-  oldFile: string
-): string | null => {
-  const alreadyPatched =
-    /if\([$\w]+\.type==="compact"\)\{[\s\S]{0,600}?return\{messages:[$\w]+\([$\w]+\),shouldQuery:!0,command:[$\w]+\}\}/;
-  if (alreadyPatched.test(oldFile)) return oldFile;
-
-  const pattern =
-    /if\([$\w]+\.type==="compact"\)\{[\s\S]{0,600}?return\{messages:[$\w]+\([$\w]+\),shouldQuery:!1,command:[$\w]+\}\}/;
-  const match = oldFile.match(pattern);
-
-  if (!match || match.index === undefined) {
-    debug(
-      'patch: compactAndContinue: failed to find the compact command result branch'
-    );
-    return null;
-  }
-
-  const original = match[0];
-  const flagIndex = original.lastIndexOf('shouldQuery:!1');
-  if (flagIndex === -1) {
-    debug(
-      'patch: compactAndContinue: failed to locate shouldQuery in the compact branch'
-    );
-    return null;
-  }
-
-  const replacement =
-    original.slice(0, flagIndex) +
-    'shouldQuery:!0' +
-    original.slice(flagIndex + 'shouldQuery:!1'.length);
-
-  const startIndex = match.index;
-  const endIndex = startIndex + original.length;
-  const newFile =
-    oldFile.slice(0, startIndex) + replacement + oldFile.slice(endIndex);
-
-  showDiff(oldFile, newFile, replacement, startIndex, endIndex);
-  return newFile;
-};
+export const DEFAULT_RESUME_PROMPT =
+  'Continue the conversation from where it left off without asking the user any further questions. Resume directly — do not acknowledge the summary, do not recap what was happening, do not preface with "I\'ll continue" or similar. Pick up the last task as if the break never happened.';
 
 /**
  * Find the minified names of the command-queue `enqueue` function and of the
@@ -90,16 +53,23 @@ const findQueueApi = (
 };
 
 /**
- * Sub-patch 2: add a macro slash command that queues the preparation command
- * (when configured) and then /compact. Queued items only run once the current
- * turn finishes, so the preparation command gets a full model turn before the
- * conversation is compacted; sub-patch 1 then resumes work automatically.
+ * Add a macro slash command that queues an optional preparation command,
+ * then /compact, then a follow-up prompt.
+ *
+ * Queued items only run once the current turn finishes, so the preparation
+ * command gets a full model turn before the conversation is compacted, and the
+ * follow-up prompt is submitted after compaction completes — which is what
+ * makes CC resume working on its own. /compact itself keeps its stock
+ * behaviour: nothing in the compaction path is modified.
  */
-export const writeCompactAndContinueCommand = (
+export const writeCompactAndContinue = (
   oldFile: string,
-  commandName: string,
-  prepareCommand: string | null
+  commandName: string | null,
+  prepareCommand: string | null,
+  resumePrompt: string | null = DEFAULT_RESUME_PROMPT
 ): string | null => {
+  if (commandName === null) return oldFile;
+
   if (!isValidSlashCommandName(commandName)) {
     debug(
       `patch: compactAndContinue: invalid command name "${commandName}", expected /^[a-zA-Z0-9][a-zA-Z0-9:_-]*$/`
@@ -119,37 +89,25 @@ export const writeCompactAndContinueCommand = (
   if (!api) return null;
 
   const { enqueue, agentId } = api;
-  const queued = prepareCommand ? [prepareCommand, 'compact'] : ['compact'];
-  const enqueueCalls = queued
+  const queuedCommands = prepareCommand
+    ? [prepareCommand, 'compact']
+    : ['compact'];
+  const queuedValues = queuedCommands.map(name => `/${name}`);
+  if (resumePrompt !== null && resumePrompt.trim() !== '') {
+    queuedValues.push(resumePrompt);
+  }
+
+  const enqueueCalls = queuedValues
     .map(
-      name =>
-        `${enqueue}({agentId:${agentId}(),mode:"prompt",value:"/${name}",priority:"next"});`
+      value =>
+        `${enqueue}({agentId:${agentId}(),mode:"prompt",value:${toJsStringLiteral(value)},priority:"next"});`
     )
     .join('');
-  const queuedList = queued.map(name => `/${name}`).join(', ');
+  const displayText = `Queued ${queuedCommands.map(name => `/${name}`).join(', ')}${
+    queuedValues.length > queuedCommands.length ? ', then resume' : ''
+  }`;
 
-  const commandDef = `,{type:"local",name:"${commandName}",description:"Compact the conversation and keep working without further input",isEnabled:()=>!0,isHidden:!1,${MARKER}:!0,load:()=>Promise.resolve({call:async()=>{if(typeof ${enqueue}!=="function"||typeof ${agentId}!=="function")return{type:"text",value:"tweakcc: command queue is unavailable"};${enqueueCalls}return{type:"text",value:"Queued ${queuedList}"}}}),userFacingName(){return"${commandName}"}}`;
+  const commandDef = `,{type:"local",name:"${commandName}",description:"Compact the conversation and keep working without further input",isEnabled:()=>!0,isHidden:!1,${MARKER}:!0,load:()=>Promise.resolve({call:async()=>{if(typeof ${enqueue}!=="function"||typeof ${agentId}!=="function")return{type:"text",value:"tweakcc: command queue is unavailable"};${enqueueCalls}return{type:"text",value:${toJsStringLiteral(displayText)}}}}),userFacingName(){return"${commandName}"}}`;
 
   return writeSlashCommandDefinition(oldFile, commandDef);
-};
-
-/**
- * Apply both sub-patches. Sub-patch 2 is skipped when no command name is
- * configured; sub-patch 1 is useful on its own.
- */
-export const writeCompactAndContinue = (
-  oldFile: string,
-  commandName: string | null,
-  prepareCommand: string | null
-): string | null => {
-  const withShouldQuery = writeCompactAndContinueShouldQuery(oldFile);
-  if (withShouldQuery === null) return null;
-
-  if (commandName === null) return withShouldQuery;
-
-  return writeCompactAndContinueCommand(
-    withShouldQuery,
-    commandName,
-    prepareCommand
-  );
 };

@@ -1,15 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  DEFAULT_RESUME_PROMPT,
   isValidSlashCommandName,
   writeCompactAndContinue,
-  writeCompactAndContinueCommand,
-  writeCompactAndContinueShouldQuery,
 } from './compactAndContinue';
 
 const compactBranch =
-  'if(C.type==="compact"){let R=[b,A,...C.displayText?[zr({content:`<local-command-stdout>${fIe(C.displayText)}</local-command-stdout>`,timestamp:new Date(Date.now()+100).toISOString()})]:[]],H={...C.compactionResult,messagesToKeep:[...C.compactionResult.messagesToKeep,...R]};return{messages:Yze(H),shouldQuery:!1,command:y}}' +
-  'if(C.type==="query")return{messages:[A,zr({content:C.prompt,isMeta:!0})],shouldQuery:!0,command:y,resultText:C.value};';
+  'if(C.type==="compact"){let R=[b,A];return{messages:Yze(R),shouldQuery:!1,command:y}}';
 
 const queueApi =
   '((Fy=pKg()),(mVe=Fy.subscribe),(IE=Fy.enqueue),(Ilt=Fy.dequeue));' +
@@ -24,142 +22,120 @@ const makeInput = () =>
   `const x=1;${compactBranch}${queueApi}${slashCommandArray};`;
 
 describe('compactAndContinue', () => {
-  describe('writeCompactAndContinueShouldQuery', () => {
-    it('flips shouldQuery to true in the compact result branch', () => {
-      const result = writeCompactAndContinueShouldQuery(makeInput());
+  it('registers the command under the default name and queues prepare, compact, resume', () => {
+    const result = writeCompactAndContinue(makeInput(), 'cc', 'c');
 
-      expect(result).not.toBeNull();
-      expect(result).toContain(
-        'return{messages:Yze(H),shouldQuery:!0,command:y}'
-      );
-    });
-
-    it('leaves the neighbouring query branch untouched', () => {
-      const result = writeCompactAndContinueShouldQuery(makeInput());
-
-      expect(result).toContain(
-        'if(C.type==="query")return{messages:[A,zr({content:C.prompt,isMeta:!0})],shouldQuery:!0,command:y,resultText:C.value}'
-      );
-      expect(result).not.toContain('shouldQuery:!1');
-    });
-
-    it('is idempotent when already patched', () => {
-      const patched = writeCompactAndContinueShouldQuery(makeInput());
-      expect(patched).not.toBeNull();
-
-      expect(writeCompactAndContinueShouldQuery(patched!)).toBe(patched);
-    });
-
-    it('returns null when the pattern is not found', () => {
-      expect(
-        writeCompactAndContinueShouldQuery('const x=1;function foo(){}')
-      ).toBeNull();
-    });
+    expect(result).not.toBeNull();
+    expect(result).toContain('name:"cc"');
+    expect(result).toContain('userFacingName(){return"cc"}');
+    expect(result).toContain(
+      'IE({agentId:Si(),mode:"prompt",value:"/c",priority:"next"});IE({agentId:Si(),mode:"prompt",value:"/compact",priority:"next"});'
+    );
+    expect(result).toContain(JSON.stringify(DEFAULT_RESUME_PROMPT));
+    expect(result).toContain('load:()=>Promise.resolve({call:async()=>{');
   });
 
-  describe('writeCompactAndContinueCommand', () => {
-    it('registers the command under the default name and queues both commands', () => {
-      const result = writeCompactAndContinueCommand(makeInput(), 'cc', 'c');
+  it('leaves the stock /compact path untouched', () => {
+    const result = writeCompactAndContinue(makeInput(), 'cc', 'c');
 
-      expect(result).not.toBeNull();
-      expect(result).toContain('name:"cc"');
-      expect(result).toContain('userFacingName(){return"cc"}');
-      expect(result).toContain(
-        'IE({agentId:Si(),mode:"prompt",value:"/c",priority:"next"});IE({agentId:Si(),mode:"prompt",value:"/compact",priority:"next"});'
-      );
-      expect(result).toContain('load:()=>Promise.resolve({call:async()=>{');
-    });
-
-    it('honours a custom command name', () => {
-      const result = writeCompactAndContinueCommand(makeInput(), 'ca', 'c');
-
-      expect(result).not.toBeNull();
-      expect(result).toContain('name:"ca"');
-      expect(result).toContain('userFacingName(){return"ca"}');
-      expect(result).not.toContain('name:"cc"');
-    });
-
-    it('queues only /compact when no preparation command is configured', () => {
-      const result = writeCompactAndContinueCommand(makeInput(), 'cc', null);
-
-      expect(result).not.toBeNull();
-      expect(result).toContain(
-        'IE({agentId:Si(),mode:"prompt",value:"/compact",priority:"next"});'
-      );
-      expect(result).toContain('value:"Queued /compact"');
-      expect(result).not.toContain('value:"/c",');
-    });
-
-    it('inserts the definition into the slash command array', () => {
-      const result = writeCompactAndContinueCommand(makeInput(), 'cc', 'c');
-
-      expect(result).not.toBeNull();
-      expect(result).toContain('...Fa?[Fa]:[],{type:"local",name:"cc"');
-    });
-
-    it('rejects a command name that is not a valid slash command name', () => {
-      for (const name of [
-        'cc"',
-        'c c',
-        '/cc',
-        '',
-        'cc);globalThis.x=1;("',
-        '-cc',
-      ]) {
-        expect(
-          writeCompactAndContinueCommand(makeInput(), name, 'c')
-        ).toBeNull();
-      }
-    });
-
-    it('rejects an invalid preparation command name', () => {
-      expect(
-        writeCompactAndContinueCommand(makeInput(), 'cc', 'c";alert(1);"')
-      ).toBeNull();
-    });
-
-    it('is idempotent when already patched', () => {
-      const patched = writeCompactAndContinueCommand(makeInput(), 'cc', 'c');
-      expect(patched).not.toBeNull();
-
-      expect(writeCompactAndContinueCommand(patched!, 'cc', 'c')).toBe(patched);
-    });
-
-    it('returns null when the command queue API is not found', () => {
-      const withoutQueue = `const x=1;${compactBranch}${slashCommandArray};`;
-
-      expect(
-        writeCompactAndContinueCommand(withoutQueue, 'cc', 'c')
-      ).toBeNull();
-    });
+    expect(result).not.toBeNull();
+    expect(result).toContain(
+      'if(C.type==="compact"){let R=[b,A];return{messages:Yze(R),shouldQuery:!1,command:y}}'
+    );
   });
 
-  describe('writeCompactAndContinue', () => {
-    it('applies both sub-patches', () => {
-      const result = writeCompactAndContinue(makeInput(), 'cc', 'c');
+  it('honours a custom command name', () => {
+    const result = writeCompactAndContinue(makeInput(), 'ca', 'c');
+
+    expect(result).not.toBeNull();
+    expect(result).toContain('name:"ca"');
+    expect(result).toContain('userFacingName(){return"ca"}');
+    expect(result).not.toContain('name:"cc"');
+  });
+
+  it('queues only /compact and the resume prompt when no preparation command is set', () => {
+    const result = writeCompactAndContinue(makeInput(), 'cc', null);
+
+    expect(result).not.toBeNull();
+    expect(result).toContain(
+      'IE({agentId:Si(),mode:"prompt",value:"/compact",priority:"next"});'
+    );
+    expect(result).not.toContain('value:"/c",');
+    expect(result).toContain(JSON.stringify(DEFAULT_RESUME_PROMPT));
+  });
+
+  it('honours a custom resume prompt and escapes it', () => {
+    const prompt = 'resume "now"\\back\nnext line';
+    const result = writeCompactAndContinue(makeInput(), 'cc', 'c', prompt);
+
+    expect(result).not.toBeNull();
+    expect(result).toContain(JSON.stringify(prompt));
+    expect(result).not.toContain('resume "now"\\back\nnext line');
+  });
+
+  it('escapes line separators that would break a JS string literal', () => {
+    const prompt = `resume\u2028here\u2029now`;
+    const result = writeCompactAndContinue(makeInput(), 'cc', null, prompt);
+
+    expect(result).not.toBeNull();
+    expect(result).toContain('resume\\u2028here\\u2029now');
+    expect(result).not.toContain('\u2028');
+  });
+
+  it('omits the resume prompt when it is null or blank', () => {
+    for (const prompt of [null, '', '   ']) {
+      const result = writeCompactAndContinue(makeInput(), 'cc', 'c', prompt);
 
       expect(result).not.toBeNull();
-      expect(result).toContain(
-        'return{messages:Yze(H),shouldQuery:!0,command:y}'
-      );
-      expect(result).toContain('name:"cc"');
-    });
+      expect(result).toContain('value:"/compact"');
+      expect(result).toContain('value:"Queued /c, /compact"');
+      expect(result).not.toContain('Continue the conversation');
+    }
+  });
 
-    it('applies only the shouldQuery sub-patch when no command name is set', () => {
-      const result = writeCompactAndContinue(makeInput(), null, 'c');
+  it('inserts the definition into the slash command array', () => {
+    const result = writeCompactAndContinue(makeInput(), 'cc', 'c');
 
-      expect(result).not.toBeNull();
-      expect(result).toContain(
-        'return{messages:Yze(H),shouldQuery:!0,command:y}'
-      );
-      expect(result).not.toContain('tweakccCompactAndContinue');
-    });
+    expect(result).not.toBeNull();
+    expect(result).toContain('...Fa?[Fa]:[],{type:"local",name:"cc"');
+  });
 
-    it('returns null when the compact branch is missing', () => {
-      expect(
-        writeCompactAndContinue(`const x=1;${queueApi}`, 'cc', 'c')
-      ).toBeNull();
-    });
+  it('does nothing when no command name is configured', () => {
+    const input = makeInput();
+
+    expect(writeCompactAndContinue(input, null, 'c')).toBe(input);
+  });
+
+  it('rejects a command name that is not a valid slash command name', () => {
+    for (const name of [
+      'cc"',
+      'c c',
+      '/cc',
+      '',
+      'cc);globalThis.x=1;("',
+      '-cc',
+    ]) {
+      expect(writeCompactAndContinue(makeInput(), name, 'c')).toBeNull();
+    }
+  });
+
+  it('rejects an invalid preparation command name', () => {
+    expect(
+      writeCompactAndContinue(makeInput(), 'cc', 'c";alert(1);"')
+    ).toBeNull();
+  });
+
+  it('is idempotent when already patched', () => {
+    const patched = writeCompactAndContinue(makeInput(), 'cc', 'c');
+    expect(patched).not.toBeNull();
+
+    expect(writeCompactAndContinue(patched!, 'cc', 'c')).toBe(patched);
+  });
+
+  it('returns null when the command queue API is not found', () => {
+    const withoutQueue = `const x=1;${compactBranch}${slashCommandArray};`;
+
+    expect(writeCompactAndContinue(withoutQueue, 'cc', 'c')).toBeNull();
   });
 
   describe('isValidSlashCommandName', () => {

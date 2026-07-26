@@ -143,6 +143,8 @@ export interface MiscConfig {
   compactAndContinueCommandName: string | null;
   /** Name (without the leading slash) of the command queued before /compact; null skips that step. */
   compactAndContinuePrepareCommand: string | null;
+  /** Prompt queued after /compact to make CC resume on its own; null queues nothing. */
+  compactAndContinueResumePrompt: string | null;
 }
 
 export interface InputPatternHighlighter {
