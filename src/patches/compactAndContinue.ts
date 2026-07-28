@@ -21,11 +21,13 @@ const MARKER = 'tweakccCompactAndContinue';
 export const DEFAULT_RESUME_COMMAND_NAME = 'compact-resume';
 
 /**
- * Default follow-up prompt, matching the wording CC itself appends to an
- * auto-compact summary.
+ * Default follow-up prompt. It extends the wording CC itself appends to an
+ * auto-compact summary with an explicit cancellation of the preparation step's
+ * "stop and wait" instruction, which is restored into context by compaction and
+ * would otherwise outweigh the request to keep working.
  */
 export const DEFAULT_RESUME_PROMPT =
-  'Continue the conversation from where it left off without asking the user any further questions. Resume directly — do not acknowledge the summary, do not recap what was happening, do not preface with "I\'ll continue" or similar. Pick up the last task as if the break never happened.';
+  'Compaction is complete. The preparation step told you to stop and wait for the user; that instruction has been carried out and no longer applies — treat it as cancelled. Continue the conversation from where it left off without asking the user any further questions and without waiting for further instructions. Resume directly — do not acknowledge the summary, do not recap what was happening, do not restate the handoff, do not preface with "I\'ll continue" or similar. Pick up the last task as if the break never happened.';
 
 /**
  * Find the minified names of the command-queue `enqueue` function and of the
