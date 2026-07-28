@@ -22,17 +22,38 @@ const makeInput = () =>
   `const x=1;${compactBranch}${queueApi}${slashCommandArray};`;
 
 describe('compactAndContinue', () => {
-  it('registers the command under the default name and queues prepare, compact, resume', () => {
+  it('queues the preparation command, /compact and the resume command', () => {
     const result = writeCompactAndContinue(makeInput(), 'cc', 'c');
 
     expect(result).not.toBeNull();
     expect(result).toContain('name:"cc"');
     expect(result).toContain('userFacingName(){return"cc"}');
     expect(result).toContain(
-      'IE({agentId:Si(),mode:"prompt",value:"/c",priority:"next"});IE({agentId:Si(),mode:"prompt",value:"/compact",priority:"next"});'
+      'IE({agentId:Si(),mode:"prompt",value:"/c",priority:"later"});' +
+        'IE({agentId:Si(),mode:"prompt",value:"/compact",priority:"later"});' +
+        'IE({agentId:Si(),mode:"prompt",value:"/cc-resume",priority:"later"});'
     );
-    expect(result).toContain(JSON.stringify(DEFAULT_RESUME_PROMPT));
     expect(result).toContain('load:()=>Promise.resolve({call:async()=>{');
+  });
+
+  it('queues every item with the "later" priority CC gives queued slash commands', () => {
+    const result = writeCompactAndContinue(makeInput(), 'cc', 'c');
+
+    expect(result).not.toBeNull();
+    expect(result).not.toContain('priority:"next"');
+    expect(result!.match(/priority:"later"/g)).toHaveLength(3);
+  });
+
+  it('carries the follow-up prompt in a hidden prompt command, not in the queue', () => {
+    const result = writeCompactAndContinue(makeInput(), 'cc', 'c');
+
+    expect(result).not.toBeNull();
+    expect(result).toContain(
+      `,{type:"prompt",name:"cc-resume",description:"Resume the work that was interrupted by compaction",isEnabled:()=>!0,isHidden:!0,contentLength:0,source:"builtin",tweakccCompactAndContinueResume:!0,async getPromptForCommand(){return[{type:"text",text:${JSON.stringify(DEFAULT_RESUME_PROMPT)}}]},userFacingName(){return"cc-resume"}}`
+    );
+    expect(result).not.toContain(
+      `value:${JSON.stringify(DEFAULT_RESUME_PROMPT)}`
+    );
   });
 
   it('leaves the stock /compact path untouched', () => {
@@ -49,19 +70,20 @@ describe('compactAndContinue', () => {
 
     expect(result).not.toBeNull();
     expect(result).toContain('name:"ca"');
-    expect(result).toContain('userFacingName(){return"ca"}');
+    expect(result).toContain('name:"ca-resume"');
+    expect(result).toContain('value:"/ca-resume"');
     expect(result).not.toContain('name:"cc"');
   });
 
-  it('queues only /compact and the resume prompt when no preparation command is set', () => {
+  it('queues only /compact and the resume command when no preparation command is set', () => {
     const result = writeCompactAndContinue(makeInput(), 'cc', null);
 
     expect(result).not.toBeNull();
     expect(result).toContain(
-      'IE({agentId:Si(),mode:"prompt",value:"/compact",priority:"next"});'
+      'IE({agentId:Si(),mode:"prompt",value:"/compact",priority:"later"});' +
+        'IE({agentId:Si(),mode:"prompt",value:"/cc-resume",priority:"later"});'
     );
     expect(result).not.toContain('value:"/c",');
-    expect(result).toContain(JSON.stringify(DEFAULT_RESUME_PROMPT));
   });
 
   it('honours a custom resume prompt and escapes it', () => {
@@ -69,7 +91,7 @@ describe('compactAndContinue', () => {
     const result = writeCompactAndContinue(makeInput(), 'cc', 'c', prompt);
 
     expect(result).not.toBeNull();
-    expect(result).toContain(JSON.stringify(prompt));
+    expect(result).toContain(`text:${JSON.stringify(prompt)}`);
     expect(result).not.toContain('resume "now"\\back\nnext line');
   });
 
@@ -82,22 +104,26 @@ describe('compactAndContinue', () => {
     expect(result).not.toContain('\u2028');
   });
 
-  it('omits the resume prompt when it is null or blank', () => {
+  it('omits the resume command when the prompt is null or blank', () => {
     for (const prompt of [null, '', '   ']) {
       const result = writeCompactAndContinue(makeInput(), 'cc', 'c', prompt);
 
       expect(result).not.toBeNull();
       expect(result).toContain('value:"/compact"');
       expect(result).toContain('value:"Queued /c, /compact"');
-      expect(result).not.toContain('Continue the conversation');
+      expect(result).not.toContain('cc-resume');
+      expect(result).not.toContain('type:"prompt"');
     }
   });
 
-  it('inserts the definition into the slash command array', () => {
+  it('inserts both definitions into the slash command array', () => {
     const result = writeCompactAndContinue(makeInput(), 'cc', 'c');
 
     expect(result).not.toBeNull();
     expect(result).toContain('...Fa?[Fa]:[],{type:"local",name:"cc"');
+    expect(result!.indexOf('name:"cc-resume"')).toBeGreaterThan(
+      result!.indexOf('name:"cc"')
+    );
   });
 
   it('does nothing when no command name is configured', () => {

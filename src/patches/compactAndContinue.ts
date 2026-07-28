@@ -17,6 +17,9 @@ const toJsStringLiteral = (value: string): string =>
 
 const MARKER = 'tweakccCompactAndContinue';
 
+/** Suffix appended to the macro name to build the follow-up command name. */
+export const RESUME_COMMAND_SUFFIX = '-resume';
+
 /**
  * Default follow-up prompt, matching the wording CC itself appends to an
  * auto-compact summary.
@@ -54,13 +57,15 @@ const findQueueApi = (
 
 /**
  * Add a macro slash command that queues an optional preparation command,
- * then /compact, then a follow-up prompt.
+ * then /compact, then a hidden command carrying the follow-up prompt.
  *
- * Queued items only run once the current turn finishes, so the preparation
- * command gets a full model turn before the conversation is compacted, and the
- * follow-up prompt is submitted after compaction completes — which is what
- * makes CC resume working on its own. /compact itself keeps its stock
- * behaviour: nothing in the compaction path is modified.
+ * Every queued item is a slash command, and each is queued with the "later"
+ * priority CC itself assigns to queued slash commands. Plain text queued this
+ * way is instead delivered into the turn that is already running, which is what
+ * would otherwise swallow the follow-up prompt before compaction even starts.
+ *
+ * /compact keeps its stock behaviour: nothing in the compaction path is
+ * modified.
  */
 export const writeCompactAndContinue = (
   oldFile: string,
@@ -83,31 +88,39 @@ export const writeCompactAndContinue = (
     return null;
   }
 
+  const resumeCommandName = `${commandName}${RESUME_COMMAND_SUFFIX}`;
+  const withResume = resumePrompt !== null && resumePrompt.trim() !== '';
+  if (withResume && !isValidSlashCommandName(resumeCommandName)) {
+    debug(
+      `patch: compactAndContinue: invalid resume command name "${resumeCommandName}", expected /^[a-zA-Z0-9][a-zA-Z0-9:_-]*$/`
+    );
+    return null;
+  }
+
   if (oldFile.includes(`${MARKER}:!0`)) return oldFile;
 
   const api = findQueueApi(oldFile);
   if (!api) return null;
 
   const { enqueue, agentId } = api;
-  const queuedCommands = prepareCommand
+  const queuedNames = prepareCommand
     ? [prepareCommand, 'compact']
     : ['compact'];
-  const queuedValues = queuedCommands.map(name => `/${name}`);
-  if (resumePrompt !== null && resumePrompt.trim() !== '') {
-    queuedValues.push(resumePrompt);
-  }
+  if (withResume) queuedNames.push(resumeCommandName);
 
-  const enqueueCalls = queuedValues
+  const enqueueCalls = queuedNames
     .map(
-      value =>
-        `${enqueue}({agentId:${agentId}(),mode:"prompt",value:${toJsStringLiteral(value)},priority:"next"});`
+      name =>
+        `${enqueue}({agentId:${agentId}(),mode:"prompt",value:${toJsStringLiteral(`/${name}`)},priority:"later"});`
     )
     .join('');
-  const displayText = `Queued ${queuedCommands.map(name => `/${name}`).join(', ')}${
-    queuedValues.length > queuedCommands.length ? ', then resume' : ''
-  }`;
+  const displayText = `Queued ${queuedNames.map(name => `/${name}`).join(', ')}`;
 
-  const commandDef = `,{type:"local",name:"${commandName}",description:"Compact the conversation and keep working without further input",isEnabled:()=>!0,isHidden:!1,${MARKER}:!0,load:()=>Promise.resolve({call:async()=>{if(typeof ${enqueue}!=="function"||typeof ${agentId}!=="function")return{type:"text",value:"tweakcc: command queue is unavailable"};${enqueueCalls}return{type:"text",value:${toJsStringLiteral(displayText)}}}}),userFacingName(){return"${commandName}"}}`;
+  const macroDef = `,{type:"local",name:"${commandName}",description:"Compact the conversation and keep working without further input",isEnabled:()=>!0,isHidden:!1,${MARKER}:!0,load:()=>Promise.resolve({call:async()=>{if(typeof ${enqueue}!=="function"||typeof ${agentId}!=="function")return{type:"text",value:"tweakcc: command queue is unavailable"};${enqueueCalls}return{type:"text",value:${toJsStringLiteral(displayText)}}}}),userFacingName(){return"${commandName}"}}`;
 
-  return writeSlashCommandDefinition(oldFile, commandDef);
+  const resumeDef = withResume
+    ? `,{type:"prompt",name:"${resumeCommandName}",description:"Resume the work that was interrupted by compaction",isEnabled:()=>!0,isHidden:!0,contentLength:0,source:"builtin",${MARKER}Resume:!0,async getPromptForCommand(){return[{type:"text",text:${toJsStringLiteral(resumePrompt as string)}}]},userFacingName(){return"${resumeCommandName}"}}`
+    : '';
+
+  return writeSlashCommandDefinition(oldFile, `${macroDef}${resumeDef}`);
 };
