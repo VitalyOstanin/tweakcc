@@ -90,6 +90,7 @@ export function MiscView({ onSubmit }: MiscViewProps) {
     compactAndContinueCommandName: 'cc' as string | null,
     compactAndContinuePrepareCommand: null as string | null,
     compactAndContinueResumePrompt: null as string | null,
+    compactAndContinueResumeCommandName: 'compact-resume' as string,
   };
 
   const ensureMisc = () => {

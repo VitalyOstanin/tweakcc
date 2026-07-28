@@ -31,7 +31,7 @@ describe('compactAndContinue', () => {
     expect(result).toContain(
       'IE({agentId:Si(),mode:"prompt",value:"/c",priority:"later"});' +
         'IE({agentId:Si(),mode:"prompt",value:"/compact",priority:"later"});' +
-        'IE({agentId:Si(),mode:"prompt",value:"/cc-resume",priority:"later"});'
+        'IE({agentId:Si(),mode:"prompt",value:"/compact-resume",priority:"later"});'
     );
     expect(result).toContain('load:()=>Promise.resolve({call:async()=>{');
   });
@@ -49,7 +49,7 @@ describe('compactAndContinue', () => {
 
     expect(result).not.toBeNull();
     expect(result).toContain(
-      `,{type:"prompt",name:"cc-resume",description:"Resume the work that was interrupted by compaction",isEnabled:()=>!0,isHidden:!0,contentLength:0,source:"builtin",tweakccCompactAndContinueResume:!0,async getPromptForCommand(){return[{type:"text",text:${JSON.stringify(DEFAULT_RESUME_PROMPT)}}]},userFacingName(){return"cc-resume"}}`
+      `,{type:"prompt",name:"compact-resume",description:"Resume the work that was interrupted by compaction",isEnabled:()=>!0,isHidden:!0,contentLength:0,source:"builtin",tweakccCompactAndContinueResume:!0,async getPromptForCommand(){return[{type:"text",text:${JSON.stringify(DEFAULT_RESUME_PROMPT)}}]},userFacingName(){return"compact-resume"}}`
     );
     expect(result).not.toContain(
       `value:${JSON.stringify(DEFAULT_RESUME_PROMPT)}`
@@ -70,9 +70,36 @@ describe('compactAndContinue', () => {
 
     expect(result).not.toBeNull();
     expect(result).toContain('name:"ca"');
-    expect(result).toContain('name:"ca-resume"');
-    expect(result).toContain('value:"/ca-resume"');
+    expect(result).toContain('name:"compact-resume"');
+    expect(result).toContain('value:"/compact-resume"');
     expect(result).not.toContain('name:"cc"');
+  });
+
+  it('honours a custom resume command name', () => {
+    const result = writeCompactAndContinue(
+      makeInput(),
+      'cc',
+      'c',
+      DEFAULT_RESUME_PROMPT,
+      'wake-up'
+    );
+
+    expect(result).not.toBeNull();
+    expect(result).toContain('name:"wake-up"');
+    expect(result).toContain('value:"/wake-up",priority:"later"');
+    expect(result).not.toContain('compact-resume');
+  });
+
+  it('rejects an invalid resume command name', () => {
+    expect(
+      writeCompactAndContinue(
+        makeInput(),
+        'cc',
+        'c',
+        DEFAULT_RESUME_PROMPT,
+        'bad name'
+      )
+    ).toBeNull();
   });
 
   it('queues only /compact and the resume command when no preparation command is set', () => {
@@ -81,7 +108,7 @@ describe('compactAndContinue', () => {
     expect(result).not.toBeNull();
     expect(result).toContain(
       'IE({agentId:Si(),mode:"prompt",value:"/compact",priority:"later"});' +
-        'IE({agentId:Si(),mode:"prompt",value:"/cc-resume",priority:"later"});'
+        'IE({agentId:Si(),mode:"prompt",value:"/compact-resume",priority:"later"});'
     );
     expect(result).not.toContain('value:"/c",');
   });
@@ -111,7 +138,7 @@ describe('compactAndContinue', () => {
       expect(result).not.toBeNull();
       expect(result).toContain('value:"/compact"');
       expect(result).toContain('value:"Queued /c, /compact"');
-      expect(result).not.toContain('cc-resume');
+      expect(result).not.toContain('compact-resume');
       expect(result).not.toContain('type:"prompt"');
     }
   });
@@ -121,7 +148,7 @@ describe('compactAndContinue', () => {
 
     expect(result).not.toBeNull();
     expect(result).toContain('...Fa?[Fa]:[],{type:"local",name:"cc"');
-    expect(result!.indexOf('name:"cc-resume"')).toBeGreaterThan(
+    expect(result!.indexOf('name:"compact-resume"')).toBeGreaterThan(
       result!.indexOf('name:"cc"')
     );
   });

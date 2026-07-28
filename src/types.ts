@@ -145,6 +145,8 @@ export interface MiscConfig {
   compactAndContinuePrepareCommand: string | null;
   /** Prompt queued after /compact to make CC resume on its own; null queues nothing. */
   compactAndContinueResumePrompt: string | null;
+  /** Name (without the leading slash) of the hidden command carrying the follow-up prompt. */
+  compactAndContinueResumeCommandName: string;
 }
 
 export interface InputPatternHighlighter {

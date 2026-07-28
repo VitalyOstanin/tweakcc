@@ -724,6 +724,7 @@ export const DEFAULT_SETTINGS: Settings = {
     compactAndContinueCommandName: 'cc',
     compactAndContinuePrepareCommand: null,
     compactAndContinueResumePrompt: null,
+    compactAndContinueResumeCommandName: 'compact-resume',
   },
   toolsets: [],
   defaultToolset: null,

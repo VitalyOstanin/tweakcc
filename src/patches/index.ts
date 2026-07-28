@@ -81,6 +81,7 @@ import { writeVoiceMode } from './voiceMode';
 import { writeChannelsMode } from './channelsMode';
 import { writeClearScreen } from './clearScreen';
 import {
+  DEFAULT_RESUME_COMMAND_NAME,
   DEFAULT_RESUME_PROMPT,
   writeCompactAndContinue,
 } from './compactAndContinue';
@@ -728,7 +729,9 @@ export const applyCustomization = async (
           config.settings.misc?.compactAndContinueCommandName ?? 'cc',
           config.settings.misc?.compactAndContinuePrepareCommand ?? null,
           config.settings.misc?.compactAndContinueResumePrompt ??
-            DEFAULT_RESUME_PROMPT
+            DEFAULT_RESUME_PROMPT,
+          config.settings.misc?.compactAndContinueResumeCommandName ??
+            DEFAULT_RESUME_COMMAND_NAME
         ),
     },
     'session-color': {

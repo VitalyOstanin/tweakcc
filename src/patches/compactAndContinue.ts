@@ -17,8 +17,8 @@ const toJsStringLiteral = (value: string): string =>
 
 const MARKER = 'tweakccCompactAndContinue';
 
-/** Suffix appended to the macro name to build the follow-up command name. */
-export const RESUME_COMMAND_SUFFIX = '-resume';
+/** Name of the hidden command that carries the follow-up prompt. */
+export const DEFAULT_RESUME_COMMAND_NAME = 'compact-resume';
 
 /**
  * Default follow-up prompt, matching the wording CC itself appends to an
@@ -71,7 +71,8 @@ export const writeCompactAndContinue = (
   oldFile: string,
   commandName: string | null,
   prepareCommand: string | null,
-  resumePrompt: string | null = DEFAULT_RESUME_PROMPT
+  resumePrompt: string | null = DEFAULT_RESUME_PROMPT,
+  resumeCommandName: string = DEFAULT_RESUME_COMMAND_NAME
 ): string | null => {
   if (commandName === null) return oldFile;
 
@@ -88,7 +89,6 @@ export const writeCompactAndContinue = (
     return null;
   }
 
-  const resumeCommandName = `${commandName}${RESUME_COMMAND_SUFFIX}`;
   const withResume = resumePrompt !== null && resumePrompt.trim() !== '';
   if (withResume && !isValidSlashCommandName(resumeCommandName)) {
     debug(
